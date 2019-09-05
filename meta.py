@@ -176,6 +176,8 @@ def patch_global_const_to_const(fo: CopyFunc) -> None:
                         changed = True    
                         const_idx = fo.build_constant( const_val )
                         code[i], code[i + 1] =  opmap["LOAD_CONST"], const_idx
+        
+        patch_const_build_tuple_to_const(fo)
         patch_const_binary_to_const(fo)
 
 def find_all_store_local_const(fo: CopyFunc) -> dict:
@@ -216,6 +218,8 @@ def patch_local_const_to_const(fo: CopyFunc) -> None:
                         changed = True
                         const_idx = fo.build_constant( const_val )
                         code[i], code[i + 1] = opmap["LOAD_CONST"], const_idx
+        
+        patch_const_build_tuple_to_const(fo)
         patch_const_binary_to_const(fo)
 
 def patch_const_store_to_nop(fo: CopyCode) -> None:
@@ -235,6 +239,34 @@ def patch_const_store_to_nop(fo: CopyCode) -> None:
                     code[i], code[i + 1] = opmap["NOP"], 0
                     code[i + 2], code[i + 3] = opmap["NOP"], 0
 
+def patch_const_build_tuple_to_const(fo: CopyFunc) -> None:
+    co = fo["__code__"]
+    code = co["codestring"]
+    length = len(code)
+    changed = True
+    while changed:
+        changed = False    
+        for i in range(0, length, 2):
+            if i + 3 <= length:
+                op, arg = code[i], code[i + 1]
+                if op == opmap["BUILD_TUPLE"]:
+                    before = []
+                    push = before.append
+                    flag = True
+                    for count in range(1, arg + 1):
+                        offset = i - 2 * count
+                        cur = code[offset]
+                        push( (cur, code[offset + 1]) )
+                        flag = flag and cur == opmap["LOAD_CONST"]
+                    if flag:
+                        changed = True    
+                        for count in range(1, arg + 1):
+                            offset = i - 2 * count
+                            code[offset], code[offset + 1] = opmap["NOP"], 0
+                        const = tuple(reversed([fo.get_constant(arg) for _, arg in before]))
+                        const_idx = fo.build_constant( const )
+                        code[i], code[i + 1] = opmap["LOAD_CONST"], const_idx
+
 def patch_const_binary_to_const(fo: CopyFunc) -> None:
     # co: CopyCode, code: [int] 
     co = fo["__code__"]
@@ -249,7 +281,7 @@ def patch_const_binary_to_const(fo: CopyFunc) -> None:
         opmap["BINARY_MODULO"]: operator.mod,
         opmap["BINARY_ADD"]: operator.add,
         opmap["BINARY_SUBTRACT"]: operator.sub,
-        # opmap["BINARY_SUBSCR"]: operator.getitem, tuple support
+        opmap["BINARY_SUBSCR"]: operator.getitem, # tuple support
         opmap["BINARY_LSHIFT"]: operator.lshift,
         opmap["BINARY_RSHIFT"]: operator.rshift,
         opmap["BINARY_AND"]:  operator.and_,

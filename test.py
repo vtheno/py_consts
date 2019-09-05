@@ -23,20 +23,22 @@ def optimization(f):
     # constant binary to constant
     patch_const_binary_to_const(fo)
 
+    # convert const store to nop
     patch_const_store_to_nop(fo)   
+    
     simple_patch_drop_nop(fo) # no calculus loop statement, if statement, try statement
 
     return fo.build() 
 
 def example(g=0):
     global a
-    a = 1 + 2
-    b = a + 1
-    c = b + 1
-    d = c + 1
-    e = a  * b * c / d
-    f = (e, e, e)
-    return f[2], g
+    a = 1 + 2          # 3
+    b = a + 1          # 4
+    c = b + 1          # 5
+    d = c + 1          # 6
+    e = a * b * c / d  # 10.0
+    f = (e, d, c, b)   # (10.0, 6, 5, 4)
+    return f[a], g     # (f[3], g)
 
 test = optimization(example)
 
