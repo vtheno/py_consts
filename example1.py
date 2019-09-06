@@ -6,17 +6,23 @@ def contains():
     c = 3
     d = (a, b, c)
     e = 2
-    return (e in d, e not in d)
+    f = 3
+    h = 1
+    i = True
+    j = False
+    return (i, ) + (j, ) == (e + 1 in d, e not in d)
 
 contains_optimized = optimization(contains)
 import dis
 dis.dis(contains_optimized)
+print( "-" * 100 )
+dis.show_code(contains_optimized)
+print( "-" * 100 )
 
 from timeit import timeit
 count = 1000000
-print( "-" * 100 )
 
-before = timeit("contains()", "from __main__ import contains", number=count)
+before = timeit("ccontains()", "from __main__ import contains", number=count)
 after =  timeit("contains_optimized()", "from __main__ import contains_optimized", number=count)
 
 print( f"before                     {before}" )

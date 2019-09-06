@@ -23,12 +23,12 @@ def optimization(f):
     patch_const_binary_to_const(fo)
 
     # merge continue at loop last
-    # patch_merge_jump_absoulte(fo)
+    patch_merge_jump_absoulte(fo)
 
     # convert const store to nop
-    # patch_const_store_to_nop(fo)
+    patch_const_store_to_nop(fo)
 
     # remove nop and recalculate jump label and location
-    # simple_patch_drop_nop(fo)
+    simple_patch_drop_nop(fo)
 
     return fo.build() 

@@ -3,9 +3,22 @@ from types import CodeType as codeType
 from opcode import opmap, opname, cmp_op
 from uuid import uuid4 as label_id
 import operator
+import inspect
 
 NoneType = type(None)
 constant_types = (bool, NoneType, int, float, str, tuple)
+
+def to_bin(x: int, n: int = 16) -> str:
+    """
+    x: int
+    n: int ; bit wide
+    """    
+    return format(x, 'b').zfill(n)
+def to_int(b: str) -> int:
+    """
+    b: str ; binary string
+    """
+    return int(b, 2)
 
 class CopyCode(dict):
     def __init__(self, co: codeType):
@@ -22,21 +35,21 @@ class CopyCode(dict):
         constants, names, varnames, filename, name, firstlineno,
         lnotab[, freevars[, cellvars]])
         """
-        self["argcount"]       = co.co_argcount       # int
-        self["cellvars"]       = list(co.co_cellvars) # [Cell]    => tuple
-        self["codestring"]     = list(co.co_code)     # [int]     => bytes
-        self["constants"]      = list(co.co_consts)   # [object]  => tuple
-        self["filename"]       = co.co_filename       # str
-        self["firstlineno"]    = co.co_firstlineno    # int
-        self["flags"]          = co.co_flags          # int
-        self["freevars"]       = list(co.co_freevars) # [Obj]     => tuple
-        self["kwonlyargcount"] = co.co_kwonlyargcount # int
-        self["lnotab"]         = co.co_lnotab         # bytes
-        self["name"]           = co.co_name           # str
-        self["names"]          = list(co.co_names)    # [str]     => tuple
-        self["nlocals"]        = co.co_nlocals        # int
-        self["stacksize"]      = co.co_stacksize      # int
-        self["varnames"]       = list(co.co_varnames) # [str]     => tuple
+        self["argcount"]       = co.co_argcount                                   # int
+        self["cellvars"]       = list(co.co_cellvars)                             # [Cell]           => tuple
+        self["codestring"]     = list(co.co_code)                                 # [int]            => bytes
+        self["constants"]      = [(type(const), const) for const in co.co_consts] # [(type, object)] => tuple
+        self["filename"]       = co.co_filename                                   # str
+        self["firstlineno"]    = co.co_firstlineno                                # int
+        self["flags"]          = co.co_flags                                      # int
+        self["freevars"]       = list(co.co_freevars)                             # [Obj]            => tuple
+        self["kwonlyargcount"] = co.co_kwonlyargcount                             # int
+        self["lnotab"]         = co.co_lnotab                                     # bytes
+        self["name"]           = co.co_name                                       # str
+        self["names"]          = list(co.co_names)                                # [str]            => tuple
+        self["nlocals"]        = co.co_nlocals                                    # int
+        self["stacksize"]      = co.co_stacksize                                  # int
+        self["varnames"]       = list(co.co_varnames)                             # [str]            => tuple
 
     def _build(self,
                argcount, kwonlyargcount, nlocals, stacksize, flags, codestring,
@@ -51,10 +64,19 @@ class CopyCode(dict):
     def build(self):
         self["cellvars"]   = tuple(self["cellvars"])
         self["codestring"] = bytes(self["codestring"])
-        self["constants"]  = tuple(self["constants"])
+        self["constants"]  = tuple([const for _, const in self["constants"]])
         self["freevars"]   = tuple(self["freevars"])
         self["names"]      = tuple(self["names"])
         self["varnames"]   = tuple(self["varnames"])
+        self["nlocals"]    = len(self["varnames"]) + self["argcount"]
+        # if not self["varnames"]:
+        #     # co_flags NEWLOCALS == 0x10    
+        #     bstring_list = list(to_bin(self["flags"]))
+        #     bstring_list[-2] = '0'
+        #     self["flags"] = to_int(''.join(bstring_list))
+        bstring_list = list(to_bin(self["flags"]))
+        bstring_list[-2] = '1' # always add a NEWLOCALS flag
+        self["flags"] = to_int(''.join(bstring_list))
         return self._build(**self)
 
 class CopyFunc(dict):
@@ -110,10 +132,10 @@ class CopyFunc(dict):
         return self["__code__"]["freevars"].index(name)
 
     def build_constant(self, obj: object) -> int:
-        if obj not in self["__code__"]["constants"]: # TODO True: Bool and 1: Int
-            self["__code__"]["constants"].append(obj)
-        return self["__code__"]["constants"].index(obj)
-
+        const = (type(obj), obj) # True: Bool and 1: Int
+        if const not in self["__code__"]["constants"]:
+            self["__code__"]["constants"].append(const)
+        return self["__code__"]["constants"].index(const)
 
     def get_global_name(self, idx: int) -> str:
         return self["__code__"]["names"][idx]
@@ -128,7 +150,8 @@ class CopyFunc(dict):
         return self["__code__"]["freevars"][idx]
 
     def get_constant(self, idx: int) -> object:
-        return self["__code__"]["constants"][idx]
+        _, val = self["__code__"]["constants"][idx]    
+        return val
 
 
 
@@ -143,9 +166,8 @@ class CopyFunc(dict):
 
 def constants_base(fo):
     patch_const_build_tuple_to_const(fo)
-    patch_const_binary_to_const(fo)
+    patch_const_binary_to_const(fo) 
     patch_const_compare_to_const(fo)
-    patch_const_build_tuple_to_const(fo)
 
 def find_all_store_global_const(fo: CopyFunc) -> dict:
     # co: CopyCode, code: [int] 
@@ -182,7 +204,6 @@ def patch_global_const_to_const(fo: CopyFunc) -> None:
                         const_idx = fo.build_constant( const_val )
                         code[i], code[i + 1] =  opmap["LOAD_CONST"], const_idx
         constants_base(fo)
-    constants_base(fo)
 
 def count_of_store(code: [int], target_op: int, target_arg: int) -> int:
     length = len(code)
@@ -232,7 +253,6 @@ def patch_local_const_to_const(fo: CopyFunc) -> None:
                         # print(name, env, const_val, const_idx)
                         code[i], code[i + 1] = opmap["LOAD_CONST"], const_idx
         constants_base(fo)
-    constants_base(fo)
         
             
 def patch_const_store_to_nop(fo: CopyCode) -> None:
@@ -506,21 +526,60 @@ def calculus_new_labels_location(code: [object]) -> [int]:
         if isinstance(op, Tag) and op.to_mark is None and not op.be_marks: # is jump statement
             code[i] = op.op
 
-def simple_patch_drop_nop(fo: CopyFunc) -> None:
-    # co: CopyCode, code: [int]  
-    # todo support if statement , loop statement, etc...
+def clean_unused_local_name(fo: CopyFunc) -> None:
     co = fo["__code__"]
     code = co["codestring"]
-    labels = collection_jump_label(fo)
+    old_local_names = co["varnames"]
+    new_local_names = []
+    push = new_local_names.append
     length = len(code)
-    codestring = []
-    push = codestring.extend
     for i in range(0, length, 2):
         op, arg = code[i], code[i + 1]
-        if isinstance(op, tuple):
-            push((op, arg))
-        else:
-            if op != opmap["NOP"]: # todo support Try Except
+        if op in [opmap["LOAD_FAST"], opmap["STORE_FAST"], opmap["DELETE_FAST"]]:
+            name = old_local_names[arg]
+            if name not in new_local_names:
+                push(name)
+            idx = new_local_names.index(name)
+            code[i + 1] = idx
+    co["varnames"] = new_local_names
+
+def clean_unused_const(fo: CopyFunc) -> None:
+    co = fo["__code__"]
+    code = co["codestring"]
+    old_local_names = co["constants"]
+    co["constants"] = []
+
+    length = len(code)
+    for i in range(0, length, 2):
+        op, arg = code[i], code[i + 1]
+        if op == opmap["LOAD_CONST"]:
+            _, val = old_local_names[arg]
+            idx = fo.build_constant(val)
+            code[i + 1] = idx
+
+
+def simple_patch_drop_nop(fo: CopyFunc) -> None:
+    # co: CopyCode, code: [int]  
+    changed = True
+    while changed:
+        patch_const_binary_to_const(fo)
+        co = fo["__code__"]
+        code = co["codestring"]    
+        labels = collection_jump_label(fo)
+        length = len(code)
+        codestring = []
+        push = codestring.extend
+        for i in range(0, length, 2):
+            op, arg = code[i], code[i + 1]
+            if isinstance(op, tuple):
                 push((op, arg))
-    calculus_new_labels_location(codestring)
-    co["codestring"] = codestring
+            else:
+                if op != opmap["NOP"]:
+                    push((op, arg))
+        calculus_new_labels_location(codestring)
+        co["codestring"] = codestring
+        changed = patch_const_build_tuple_to_const(fo) or patch_const_compare_to_const(fo)
+    clean_unused_local_name(fo)
+    clean_unused_const(fo)
+    flags = fo["__code__"]["flags"]
+    print(flags, bin(flags)[2:])
