@@ -22,7 +22,7 @@ print( "-" * 100 )
 from timeit import timeit
 count = 1000000
 
-before = timeit("ccontains()", "from __main__ import contains", number=count)
+before = timeit("contains()", "from __main__ import contains", number=count)
 after =  timeit("contains_optimized()", "from __main__ import contains_optimized", number=count)
 
 print( f"before                     {before}" )
