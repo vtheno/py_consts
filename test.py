@@ -59,6 +59,7 @@ def example():
     if a < b:                       # if 3 < 4
         h = f                       # h = (10.0, 6, 5, 4)
         count = e                   # count = 10.0
+        print( f is h )             # 
         Sum = 0                     # Sum = 0
         for x in range(int(count)): # for x in range(int(10.0))
             Sum += x                # Sum += x

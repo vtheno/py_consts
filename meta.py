@@ -2,6 +2,7 @@ from types import FunctionType as funcType
 from types import CodeType as codeType
 from opcode import opmap, opname, cmp_op
 from uuid import uuid4 as label_id
+import operator
 
 NoneType = type(None)
 constant_types = (bool, NoneType, int, float, str, tuple)
@@ -109,7 +110,7 @@ class CopyFunc(dict):
         return self["__code__"]["freevars"].index(name)
 
     def build_constant(self, obj: object) -> int:
-        if obj not in self["__code__"]["constants"]:
+        if obj not in self["__code__"]["constants"]: # TODO True: Bool and 1: Int
             self["__code__"]["constants"].append(obj)
         return self["__code__"]["constants"].index(obj)
 
@@ -139,6 +140,12 @@ class CopyFunc(dict):
         # idx = self.build_local(name)
         # self["__code__"]["codestring"] = [opmap["STORE_FAST"], idx] + self["__code__"]["codestring"]
         raise NotImplementedError
+
+def constants_base(fo):
+    patch_const_build_tuple_to_const(fo)
+    patch_const_binary_to_const(fo)
+    patch_const_compare_to_const(fo)
+    patch_const_build_tuple_to_const(fo)
 
 def find_all_store_global_const(fo: CopyFunc) -> dict:
     # co: CopyCode, code: [int] 
@@ -174,10 +181,8 @@ def patch_global_const_to_const(fo: CopyFunc) -> None:
                         changed = True    
                         const_idx = fo.build_constant( const_val )
                         code[i], code[i + 1] =  opmap["LOAD_CONST"], const_idx
-        
-        patch_const_build_tuple_to_const(fo)
-        patch_const_binary_to_const(fo)
-        patch_const_compare_to_const(fo)
+        constants_base(fo)
+    constants_base(fo)
 
 def count_of_store(code: [int], target_op: int, target_arg: int) -> int:
     length = len(code)
@@ -219,18 +224,17 @@ def patch_local_const_to_const(fo: CopyFunc) -> None:
             op, arg = code[i], code[i + 1]
             if op == opmap["LOAD_FAST"]:
                 name = fo.get_local_name(arg)
-                # print(name, env)
                 if name in env.keys():
                     const_val = env[name] 
                     if isinstance(const_val, constant_types):
                         changed = True
                         const_idx = fo.build_constant( const_val )
+                        # print(name, env, const_val, const_idx)
                         code[i], code[i + 1] = opmap["LOAD_CONST"], const_idx
+        constants_base(fo)
+    constants_base(fo)
         
-        patch_const_build_tuple_to_const(fo)
-        patch_const_binary_to_const(fo)
-        patch_const_compare_to_const(fo)
-
+            
 def patch_const_store_to_nop(fo: CopyCode) -> None:
     # co: CopyCode, code: [int] 
     co = fo["__code__"]
@@ -248,11 +252,12 @@ def patch_const_store_to_nop(fo: CopyCode) -> None:
                     code[i], code[i + 1] = opmap["NOP"], 0
                     code[i + 2], code[i + 3] = opmap["NOP"], 0
 
-def patch_const_build_tuple_to_const(fo: CopyFunc) -> None:
+def patch_const_build_tuple_to_const(fo: CopyFunc) -> bool:
     co = fo["__code__"]
     code = co["codestring"]
     length = len(code)
     changed = True
+    result = False
     while changed:
         changed = False    
         for i in range(0, length, 2):
@@ -268,20 +273,26 @@ def patch_const_build_tuple_to_const(fo: CopyFunc) -> None:
                         push( (cur, cur_arg) )
                         flag = flag and cur == opmap["LOAD_CONST"]
                     if flag:
-                        changed = True    
+                        changed = True
+                        result = True
                         for count in range(1, arg + 1):
                             offset = i - 2 * count
                             code[offset], code[offset + 1] = opmap["NOP"], 0
                         const = tuple(reversed([fo.get_constant(arg) for _, arg in before]))
                         const_idx = fo.build_constant( const )
                         code[i], code[i + 1] = opmap["LOAD_CONST"], const_idx
+    return result
 
-def patch_const_compare_to_const(fo: CopyFunc) -> None:
+def patch_const_compare_to_const(fo: CopyFunc) -> bool:
     # co: CopyCode, code: [int] 
     co = fo["__code__"]
     code = co["codestring"]
     co = fo["__code__"]
-    import operator
+    def in_(a, b):
+        print("IN", a, b)
+        return a in b
+    def not_in(a, b):
+        return a not in b
     env = {
         '<'     :  operator.lt,
         '<='    : operator.le, 
@@ -291,11 +302,12 @@ def patch_const_compare_to_const(fo: CopyFunc) -> None:
         '>='    : operator.ge, 
         'is'    : operator.is_, 
         'is not': operator.is_not,
+        'in'    : in_,
+        'not in': not_in,
     } 
-    # 'in',  const in tuple const
-    # 'not in', const not in tuple const
     length = len(code)
     changed = True
+    result = False
     while changed:
         changed = False
         for i in range(0, length, 2):
@@ -305,18 +317,19 @@ def patch_const_compare_to_const(fo: CopyFunc) -> None:
                 lastop, lastarg = code[i + 4], code[i + 5]
                 if op == nextop == opmap["LOAD_CONST"] and lastop == opmap["COMPARE_OP"] and cmp_op[lastarg] in env.keys():
                     changed = True
+                    result = True
                     last_opname = cmp_op[lastarg]
                     val = env[last_opname](fo.get_constant(arg), fo.get_constant(nextarg))
                     const_idx = fo.build_constant(val)
                     code[i], code[i + 1] = opmap["NOP"], 0
                     code[i + 2], code[i + 3] = opmap["NOP"], 0
                     code[i + 4], code[i + 5] = opmap["LOAD_CONST"], const_idx
+    return result
 
-def patch_const_binary_to_const(fo: CopyFunc) -> None:
+def patch_const_binary_to_const(fo: CopyFunc) -> bool:
     # co: CopyCode, code: [int] 
     co = fo["__code__"]
     code = co["codestring"]
-    import operator
     env = {
         opmap["BINARY_POWER"]           : operator.pow,
         opmap["BINARY_MULTIPLY"]        : operator.mul,
@@ -335,6 +348,7 @@ def patch_const_binary_to_const(fo: CopyFunc) -> None:
     }
     length = len(code)
     changed = True
+    result = False
     while changed:
         changed = False
         for i in range(0, length, 2):
@@ -344,11 +358,13 @@ def patch_const_binary_to_const(fo: CopyFunc) -> None:
                 lastop, lastarg = code[i + 4], code[i + 5]
                 if op == nextop == opmap["LOAD_CONST"] and lastop in env.keys():
                     changed = True
+                    result = True
                     val = env[lastop](fo.get_constant(arg), fo.get_constant(nextarg))
                     const_idx = fo.build_constant(val)
                     code[i], code[i + 1] = opmap["NOP"], 0
                     code[i + 2], code[i + 3] = opmap["NOP"], 0
                     code[i + 4], code[i + 5] = opmap["LOAD_CONST"], const_idx
+    return True
     
 def patch_merge_jump_absoulte(fo: CopyFunc) -> None:
     co = fo["__code__"]
