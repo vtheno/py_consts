@@ -1,6 +1,14 @@
 from optimization import optimization
 
 @optimization
+def if_statement():
+    CONST = False
+    if CONST:
+        # ...
+        return True
+    return False
+
+@optimization
 def example():
     global ROOT    
     ROOT = "/"

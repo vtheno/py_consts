@@ -578,7 +578,9 @@ def simple_patch_drop_nop(fo: CopyFunc) -> None:
                     push((op, arg))
         calculus_new_labels_location(codestring)
         co["codestring"] = codestring
-        changed = patch_const_build_tuple_to_const(fo) or patch_const_compare_to_const(fo)
+        f_T = patch_const_build_tuple_to_const(fo)
+        f_C = patch_const_compare_to_const(fo)
+        changed = f_T or f_C
     clean_unused_local_name(fo)
     clean_unused_const(fo)
     flags = fo["__code__"]["flags"]
