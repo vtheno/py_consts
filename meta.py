@@ -12,7 +12,7 @@ def to_bin(x: int, n: int = 16) -> str:
     """
     x: int
     n: int ; bit wide
-    """    
+    """
     return format(x, 'b').zfill(n)
 def to_int(b: str) -> int:
     """
@@ -70,7 +70,7 @@ class CopyCode(dict):
         self["varnames"]   = tuple(self["varnames"])
         self["nlocals"]    = len(self["varnames"]) + self["argcount"]
         # if not self["varnames"]:
-        #     # co_flags NEWLOCALS == 0x10    
+        #     # co_flags NEWLOCALS == 0x10
         #     bstring_list = list(to_bin(self["flags"]))
         #     bstring_list[-2] = '0'
         #     self["flags"] = to_int(''.join(bstring_list))
@@ -150,7 +150,7 @@ class CopyFunc(dict):
         return self["__code__"]["freevars"][idx]
 
     def get_constant(self, idx: int) -> object:
-        _, val = self["__code__"]["constants"][idx]    
+        _, val = self["__code__"]["constants"][idx]
         return val
 
 
@@ -166,11 +166,11 @@ class CopyFunc(dict):
 
 def constants_base(fo):
     patch_const_build_tuple_to_const(fo)
-    patch_const_binary_to_const(fo) 
+    patch_const_binary_to_const(fo)
     patch_const_compare_to_const(fo)
 
 def find_all_store_global_const(fo: CopyFunc) -> dict:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     length = len(code)
@@ -185,22 +185,22 @@ def find_all_store_global_const(fo: CopyFunc) -> dict:
 
 
 def patch_global_const_to_const(fo: CopyFunc) -> None:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     length = len(code)
     changed = True
     while changed:
-        changed = False    
+        changed = False
         env = find_all_store_global_const(fo)
         for i in range(0, length, 2):
             op, arg = code[i], code[i + 1]
             if op == opmap["LOAD_GLOBAL"]:
                 name = fo.get_global_name(arg)
                 if name in env.keys():
-                    const_val = env[name] 
+                    const_val = env[name]
                     if isinstance(const_val, constant_types):
-                        changed = True    
+                        changed = True
                         const_idx = fo.build_constant( const_val )
                         code[i], code[i + 1] =  opmap["LOAD_CONST"], const_idx
         constants_base(fo)
@@ -215,7 +215,7 @@ def count_of_store(code: [int], target_op: int, target_arg: int) -> int:
     return count
 
 def find_all_store_local_const(fo: CopyFunc) -> dict:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     length = len(code)
@@ -229,14 +229,14 @@ def find_all_store_local_const(fo: CopyFunc) -> dict:
     return env
 
 def patch_local_const_to_const(fo: CopyFunc) -> None:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     length = len(code)
-    
+
     changed = True
     while changed:
-        changed = False    
+        changed = False
         env = find_all_store_local_const(fo)
         # print("-"*100)
         # print(co)
@@ -246,17 +246,17 @@ def patch_local_const_to_const(fo: CopyFunc) -> None:
             if op == opmap["LOAD_FAST"]:
                 name = fo.get_local_name(arg)
                 if name in env.keys():
-                    const_val = env[name] 
+                    const_val = env[name]
                     if isinstance(const_val, constant_types):
                         changed = True
                         const_idx = fo.build_constant( const_val )
                         # print(name, env, const_val, const_idx)
                         code[i], code[i + 1] = opmap["LOAD_CONST"], const_idx
         constants_base(fo)
-        
-            
+
+
 def patch_const_store_to_nop(fo: CopyCode) -> None:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     length = len(code)
@@ -279,7 +279,7 @@ def patch_const_build_tuple_to_const(fo: CopyFunc) -> bool:
     changed = True
     result = False
     while changed:
-        changed = False    
+        changed = False
         for i in range(0, length, 2):
             if i + 3 <= length:
                 op, arg = code[i], code[i + 1]
@@ -304,7 +304,7 @@ def patch_const_build_tuple_to_const(fo: CopyFunc) -> bool:
     return result
 
 def patch_const_compare_to_const(fo: CopyFunc) -> bool:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     co = fo["__code__"]
@@ -315,16 +315,16 @@ def patch_const_compare_to_const(fo: CopyFunc) -> bool:
         return a not in b
     env = {
         '<'     :  operator.lt,
-        '<='    : operator.le, 
-        '=='    : operator.eq, 
-        '!='    : operator.ne, 
-        '>'     : operator.gt, 
-        '>='    : operator.ge, 
-        'is'    : operator.is_, 
+        '<='    : operator.le,
+        '=='    : operator.eq,
+        '!='    : operator.ne,
+        '>'     : operator.gt,
+        '>='    : operator.ge,
+        'is'    : operator.is_,
         'is not': operator.is_not,
         'in'    : in_,
         'not in': not_in,
-    } 
+    }
     length = len(code)
     changed = True
     result = False
@@ -347,7 +347,7 @@ def patch_const_compare_to_const(fo: CopyFunc) -> bool:
     return result
 
 def patch_const_binary_to_const(fo: CopyFunc) -> bool:
-    # co: CopyCode, code: [int] 
+    # co: CopyCode, code: [int]
     co = fo["__code__"]
     code = co["codestring"]
     env = {
@@ -385,7 +385,7 @@ def patch_const_binary_to_const(fo: CopyFunc) -> bool:
                     code[i + 2], code[i + 3] = opmap["NOP"], 0
                     code[i + 4], code[i + 5] = opmap["LOAD_CONST"], const_idx
     return True
-    
+
 def patch_merge_jump_absoulte(fo: CopyFunc) -> None:
     co = fo["__code__"]
     code = co["codestring"]
@@ -437,13 +437,13 @@ def collection_jump_label(fo: CopyFunc) -> None:
         op, arg = code[i], code[i + 1]
         if op in jump_target_collections:
             label, type = label_id().hex, True
-            
+
             source = Tag(op)
             source.set_to_mark(label, type)
             code[i] = source
 
             target_offset = arg
-            target_op = code[target_offset]            
+            target_op = code[target_offset]
             if not isinstance(target_op, Tag):
                 target = Tag(target_op)
                 target.set_be_marks(label, type)
@@ -452,11 +452,11 @@ def collection_jump_label(fo: CopyFunc) -> None:
                 target_op.set_be_marks(label, type)
         elif op in jump_delta_collections:
             label, type = label_id().hex, False
-            
+
             source = Tag(op)
             source.set_to_mark(label, type)
             code[i] = source
-            
+
             delta_offset = arg
             delta_op = code[i + delta_offset]
             if not isinstance(delta_op, Tag):
@@ -468,9 +468,9 @@ def collection_jump_label(fo: CopyFunc) -> None:
         elif isinstance(op, Tag):
             if op.op in jump_target_collections and op.to_mark is None:
                 label, type = label_id().hex, True
-                
-                op.set_to_mark(label, type)                
-                
+
+                op.set_to_mark(label, type)
+
                 target_offset = arg
                 target_op = code[target_offset]
                 if not isinstance(target_op, Tag):
@@ -482,9 +482,9 @@ def collection_jump_label(fo: CopyFunc) -> None:
 
             elif op.op in jump_delta_collections and op.to_mark is None:
                 label, type = label_id().hex, False
-                
-                op.set_to_mark(label, type)                
-                
+
+                op.set_to_mark(label, type)
+
                 delta_offset = arg
                 delta_op = code[i + delta_offset]
                 if not isinstance(delta_op, Tag):
@@ -493,7 +493,7 @@ def collection_jump_label(fo: CopyFunc) -> None:
                     code[i + delta_offset] = target
                 else:
                     delta_op.set_be_marks(label, type)
-                    
+
 class InvaildKey(Exception): pass
 def get_label_location(code: [object], key: (str, bool)) -> int:
     length = len(code)
@@ -516,7 +516,7 @@ def calculus_new_labels_location(code: [object]) -> [int]:
             _, isTarget = op.to_mark
             op.to_mark = None
             if isTarget:
-                target = location    
+                target = location
                 code[i + 1] = target
             else:
                 delta = location - i
@@ -558,13 +558,62 @@ def clean_unused_const(fo: CopyFunc) -> None:
             code[i + 1] = idx
 
 
+def patch_jump_if(fo: CopyFunc) -> None:
+    co = fo["__code__"]
+    code = co["codestring"]
+    length = len(code)
+    # opmap["POP_JUMP_IF_TRUE"],
+    # opmap["JUMP_IF_TRUE_OR_POP"],
+    # opmap["JUMP_IF_FALSE_OR_POP"],
+    modify = False
+    for i in range(0, length, 2):
+        if i + 3 <= length:
+            op, arg = code[i], code[i + 1]
+            nextop, nextarg = code[i + 2], code[i + 3]
+            if op == opmap["LOAD_CONST"]:
+                if nextop == opmap["POP_JUMP_IF_FALSE"]:
+                    modify = True
+                    val = fo.get_constant(arg)
+                    target = nextarg
+                    print( "[flag]", i, val )
+                    if not val:
+                        code[i], code[i + 1] = opmap["NOP"], 0
+                        code[i + 2], code[i + 3] = opmap["NOP"], 0
+                        for x in range(i, target, 2):
+                            code[x], code[x + 1] = opmap["NOP"], 0
+                            # print( opname[code[x]], code[x], code[x + 1] )
+                    else:
+                        code[i], code[i + 1] = opmap["NOP"], 0
+                        code[i + 2], code[i + 3] = opmap["NOP"], 0
+                        for x in range(target, length, 2):
+                            code[x], code[x + 1] = opmap["NOP"], 0
+                            # print( opname[code[x]], code[x], code[x + 1] )
+                elif nextop == opmap["POP_JUMP_IF_TRUE"]:
+                    val = fo.get_constant(arg)
+                    target = nextarg
+                    print( "[flag]", i, val )
+                    if val:
+                        code[i], code[i + 1] = opmap["NOP"], 0
+                        code[i + 2], code[i + 3] = opmap["NOP"], 0
+                        for x in range(i, target, 2):
+                            code[x], code[x + 1] = opmap["NOP"], 0
+                            # print( opname[code[x]], code[x], code[x + 1] )
+                    else:
+                        code[i], code[i + 1] = opmap["NOP"], 0
+                        code[i + 2], code[i + 3] = opmap["NOP"], 0
+                        for x in range(target, length, 2):
+                            code[x], code[x + 1] = opmap["NOP"], 0
+
+
+    return modify
+
 def simple_patch_drop_nop(fo: CopyFunc) -> None:
-    # co: CopyCode, code: [int]  
+    # co: CopyCode, code: [int]
     changed = True
     while changed:
         patch_const_binary_to_const(fo)
         co = fo["__code__"]
-        code = co["codestring"]    
+        code = co["codestring"]
         labels = collection_jump_label(fo)
         length = len(code)
         codestring = []
@@ -581,7 +630,29 @@ def simple_patch_drop_nop(fo: CopyFunc) -> None:
         f_T = patch_const_build_tuple_to_const(fo)
         f_C = patch_const_compare_to_const(fo)
         changed = f_T or f_C
+
+def patch(fo: CopyFunc) -> None:
+    # constant binary to constant
+    patch_const_binary_to_const(fo)
+
+    # global ref const to const
+    patch_global_const_to_const(fo)
+
+    # local ref const to const
+    patch_local_const_to_const(fo)
+
+    # constant binary to constant
+    patch_const_binary_to_const(fo)
+
+    # merge continue at loop last
+    patch_merge_jump_absoulte(fo)
+
+    # convert const store to nop
+    patch_const_store_to_nop(fo)
+
+    # remove nop and recalculate jump label and location
+    simple_patch_drop_nop(fo)
+    while patch_jump_if(fo):
+        simple_patch_drop_nop(fo)
     clean_unused_local_name(fo)
     clean_unused_const(fo)
-    flags = fo["__code__"]["flags"]
-    print(flags, bin(flags)[2:])
