@@ -589,6 +589,7 @@ def patch_jump_if(fo: CopyFunc) -> None:
                             code[x], code[x + 1] = opmap["NOP"], 0
                             # print( opname[code[x]], code[x], code[x + 1] )
                 elif nextop == opmap["POP_JUMP_IF_TRUE"]:
+                    modify = True
                     val = fo.get_constant(arg)
                     target = nextarg
                     print( "[flag]", i, val )
