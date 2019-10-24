@@ -1,5 +1,0 @@
-POP_JUMP_IF_FLASE -> if statement
-LOAD_DEREF
-LOAD_NAME
-;; shadow const
-etc.

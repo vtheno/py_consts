@@ -1,1 +1,6 @@
 * A simple python const optimization
+* Require python 3.8+
+    #+BEGIN_SRC bash
+    python --version
+    # Python 3.8.0
+    #+END_SRC
